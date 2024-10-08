@@ -3,6 +3,40 @@ from collections import defaultdict
 from .utils import *
 from transformers import pipeline
 
+class GenderedPromptFilter:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            'required': {
+                'faces': ('FACE',),
+                'face_index': ('INT', {'default': 0, 'min': 0, 'step': 1}),
+                'man_prompt': ('STRING',),
+                'woman_prompt': ('STRING',),
+                'neutral_prompt': ('STRING',)
+            }
+        }
+    
+    RETURN_TYPES = ('STRING', 'STRING')
+    RETURN_NAMES = ('prompt', 'detected_gender')
+    FUNCTION = 'run'
+    CATEGORY = 'facetools'
+
+    def run(self, faces, face_index, man_prompt, woman_prompt, neutral_prompt):
+        filtered = []
+        rest = []
+        pipe = pipeline('image-classification', model='dima806/man_woman_face_image_detection', device=0)
+        face = faces[face_index]
+        _, im = face.crop(224, 1.2)
+        im = im.permute(0,3,1,2)[0]
+        im = tv.transforms.functional.resize(im, (224,224))
+        r = pipe(tv.transforms.functional.to_pil_image(im))
+        idx = np.argmax([i['score'] for i in r])
+        if r[idx]['label'] == 'man':
+            return (man_prompt, r[idx]['label'])
+        elif r[idx]['label'] == 'woman':
+            return (woman_prompt, r[idx]['label'])
+        return (neutral_prompt, r[idx]['label'])
+    
 class GenderFaceFilter:
     @classmethod
     def INPUT_TYPES(cls):
@@ -298,6 +332,7 @@ NODE_CLASS_MAPPINGS = {
     'JonathandinuMask': JonathandinuMask,
     'MergeWarps': MergeWarps,
     'GenderFaceFilter': GenderFaceFilter,
+    'GenderedPromptFilter': GenderedPromptFilter,
     'OrderedFaceFilter': OrderedFaceFilter,
 }
 
@@ -309,5 +344,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     'JonathandinuMask': 'Jonathandinu Mask',
     'MergeWarps': 'Merge Warps',
     'GenderFaceFilter': 'Gender Face Filter',
+    'GenderedPromptFilter': 'Gendered Prompt Filter',
     'OrderedFaceFilter': 'Ordered Face Filter',
 }
